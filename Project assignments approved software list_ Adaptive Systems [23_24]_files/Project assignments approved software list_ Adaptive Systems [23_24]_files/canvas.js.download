@@ -1,0 +1,372 @@
+$(window).load(function () {
+// GRADEBOOK FOR STAFF
+// Check gradebook is in the url but SpeedGrader isn't 
+    if(window.location.href.indexOf("gradebook") > -1){
+		if(window.location.href.indexOf("speed_grader") < 0){
+// Look for pages with 'gradebook' in the URL and hide student names when a marker clicks on submission details
+			var sheet = document.createElement('style');
+			sheet.innerHTML = ".ui-dialog-title {display:none;}";
+			document.body.appendChild(sheet);
+// Set loop so script keeps looking for gradebook-cell-comment class as the grades aren't loaded at document ready	
+			var timerone = setInterval(function() {
+				$('.student-grades-link').removeAttr("href");
+				$("a.gradebook-cell-comment").on('click', function() {
+// Once clicked clear loop			
+					clearInterval(timerone);
+					gradebookCellComment();
+				});
+			}, 200);
+// Change details in submission tray
+			gradebookSubmissionTray();
+		}else{
+// if speedgrader is in the URL 
+			speedGraderToTurnItIn();
+		}
+	}
+// FEEDBACK FOR STUDENTS	
+	var pathURL = location.pathname;    
+// Only update this page	
+	if(pathURL.match(/courses\/[0-9]+\/assignments\/[0-9]+\/submissions/g)) {
+// file-upload-submission-turnitin exists with a length of nine even on Assignments not using the External Tool, so check the length of the element is over 20 before removing link to SpeedGrader feedback.		
+		if (document.querySelector("div.file-upload-submission-turnitin a")) {
+			$( "a.not_external.turnitin_similarity_score").prepend("View feedback in Turnitin (similarity score: ").append(")");
+        	$( "a.not_external.turnitin_similarity_score").attr('title', 'Preview your submission in Turnitin and view teacher feedback, if available');
+    		$( "div.file-upload-submission-attachment a" ).css( {
+   					'display' : 'none'
+			}).attr('title', 'Preview your submission in SpeedGrader and view teacher feedback, if available');
+//    		console.log('feedback link has been hidden');
+		} 
+	}
+	$('#DashboardOptionsMenu_Container').prepend('<a href="courses" target="_self" style="color:#db334a;font-weight:bold; padding-right:2em;">See all modules</a>');
+
+	// CALENDAR NOTICE
+	$('div#calendar_header').append('<div style="border: 1px solid #013135; padding: 0.4em 1em;"><p><strong>Sussex students:</strong> please visit <a href="https://direct.sussex.ac.uk/page.php?realm=study&page=study_timetable&formlet=student_timetable" target="_blank" style="font-weight:bold;">the Sussex Direct calendar</a> to get your full timetable of taught sessions and assessment deadlines.</p></div>');
+
+	// Add aria for links to current page
+	document.querySelectorAll(`a[href="${window.location}"]`).forEach(el => el.setAttribute("aria-current", "page"));
+
+	// GET MODULE IMAGE
+	// Check page for uos-hero id. If found load module image.
+	const moduleimage = document.getElementById("uos-hero");
+	if(moduleimage){
+		getModuleImage(moduleimage);
+	}
+
+
+	// EMBED UNITS
+	// check page for links with uos-embed class
+	const embeds = document.querySelectorAll('a.uos-embed');
+	//check the link is a module link
+	embeds.forEach( element => {
+		const dataApiReturntype = element.getAttribute('data-api-returntype');
+		const href = element.getAttribute('href');
+		let ids = [], courseID, moduleID;
+		switch(dataApiReturntype){
+			case "[Module]":
+				//If the link is to the modules page		
+				//TODO
+				break;
+			
+			case "Module":
+				//grab the link and the module code TODO
+				ids = href.match(/courses\/(\d+)\/modules\/(\d+)/);
+				courseID = ids[1];
+				moduleID = ids[2];
+				//load units information
+				loadModule(element, courseID, moduleID);
+				//loadModuleGraphQL(element, courseID, moduleID);
+				break;
+	
+			case "Page":
+				//If the link is to a page
+				//TODO
+	
+		}
+	});
+
+});
+
+
+// GRADEBOOK FOR STAFF
+function gradebookCellComment() {
+// Set loop so script keeps looking for .submisison-attachment and .turnitin_score_container classes as the grades aren't loaded at document ready
+	var timertwo = setInterval(function() {	
+// The Turnitin_score_container div exists with a length of nine even on Assignments not using the External Tool, so check the length of the element is over 20 (usually its 31 if it is a Turnitin assignment).		
+if ($("a.turnitin_similarity_score" ).length) {
+
+// Check feedback is not in string already and if so remove link to SpeedGrader and add "go to feedback" string. You need this as loop unexpectedly updates similarity score with "go to feedback" multiple times. 			
+			var string = $('a.turnitin_similarity_score').html();
+			if (!string.match(/Turnitin/g)) {
+				$( "a.more-details-link" ).css( "display", "none" );
+				$( "label[for='submission_to_view'],#submission_to_view" ).css( "display", "none" );
+				$( "a.turnitin_similarity_score").prepend("View/mark submission in Turnitin (similarity score: ");
+				if ($(".none_score").length) {
+					$( "a.turnitin_similarity_score").append("0%");
+				}
+				$( "a.turnitin_similarity_score").append(")");
+			}
+// Once its done keep looping as they may click on another submission
+		}
+	}, 500);			
+}
+
+// UPDATE NAME AND SPEEDGRADER LINK IN SUBMISSION TRAY 
+/*
+// Check if viewing the gradebook and anonymise data in the submission tray
+// Hide the student avatar, and replace name with the name listed in the grade book column (which could be candidate id)
+// Replace SpeedGrader link text with the text 'Mark Assignment' and set to open SpeedGrader in a new window.  
+*/
+function gradebookSubmissionTray(){
+	try{
+		var timerThree = setInterval(function(){
+			if($("div#SubmissionTray__Content").length){	
+				// Replace student name in submission tray with name in active gradebook row
+				var student_name = $("div.slick-row.active div > div > a.student-grades-link").text();
+				// Remove link to student profile and replace name with name in gradebook column
+				$("div#student-carousel > div > a").removeAttr("href");
+				$("div#student-carousel > div > a").text(student_name);
+				if (!$("div#SubmissionTray__Content").hasClass('tel-show')){$("div#SubmissionTray__Content").addClass('tel-show');}
+				// Change SpeedGrader link text to 'Mark Assignment'
+				$("div#SubmissionTray__Content > div > div a[href*=speed_grader] span").text("Mark Assignment");
+				// Force to open in a new window
+				$("div#SubmissionTray__Content > div > div a[href*=speed_grader]").attr("target","_blank");
+			}
+		}, 500);
+	}catch(er){
+		console.log("gradebookSubmissionTray() threw: "+ er);
+	}
+}
+
+// REDIRECT FROM SPEEDGRADER TO TURNITIN
+/*
+// Check if this is a turnitin Submission and redirect if so
+// Hide navigation if it is a non-submission or still processing a TurnItIn report
+*/
+function speedGraderToTurnItIn(){
+	try{
+		var loadtimer = setInterval(function() {
+			console.log("loading...");
+			if (document.getElementById("speed_grader_loading").getAttribute("style") == "display: none;"){
+				clearInterval(loadtimer);
+				// check if a link to TurnItIn is present
+				if (document.querySelector("a.turnitin_similarity_score")){
+					//if link found get URL for TurnItIn
+					var turnItInURL = document.querySelector("a.turnitin_similarity_score").getAttribute("href");
+					// check whether it is still processing (#)
+					if(turnItInURL == "#"){
+						//if yes, flag as processing
+						document.body.classList.add("tel_turnitin_processing");
+					}else{
+						//if no, redirect
+						window.location.href = turnItInURL;
+					}
+				} else if (document.querySelector('div#this_student_does_not_have_a_submission[style*=block]')){
+					// Check if no submission
+					document.body.classList.add("tel_no_submission");
+				} else{ 
+					// flag page as speedgrader
+					document.body.classList.add("tel_speedgrader_submission");
+				}
+			}
+		}, 10);
+	} catch(er){
+		console.log("speedGraderToTurnItIn() threw: "+ er);
+	}
+}
+
+// GET MODULE IMAGE
+const getModuleImage = async (el) => {
+    try{
+		//get the course ID from ENV
+		const courseID = ENV.context_asset_string.substring(7);
+		console.log(courseID);
+		//build the api request
+        const resp = await fetch(`${window.location.origin}/api/v1/courses/${courseID}/settings`);
+        const data = await resp.json();
+        // if an image URL is found add the image to the page, else add a message and throw an error
+		if(data.image){
+            el.innerHTML = `<img src="${data.image}" alt="" />`;
+        }else{
+			el.innerHTML = '<div class="uos-no-image">No image found. Go to <strong>Settings</strong> to add an image.</div>';
+            throw new Error('No image found');
+        }
+    }catch(err){
+        console.error(err);
+        //take no action
+    }
+}
+
+
+// EMBED
+const loadModule = async (el, courseID, moduleID) => {
+	// create node to hold links
+    let node = document.createElement("div");
+	// create a request for the units page
+    try{
+		const resp = await fetch(`${window.location.origin}/api/v1/courses/${courseID}/modules/${moduleID}/items?per_page=100&include[]=content_details`);
+		const data = await resp.json();
+		//create a string to hold the html and loop through all unit items
+		let html = `<ul class="${el.classList.value} uos-loaded">`;
+		for (let i=0 ;i< data.length ;i++){
+			//TODO add classes for completion
+			//const complete = response[i].completion_requirement.completed ? 'uos-complete' : 'uos-incomplete';
+			//add to the html if they are at root level
+			if(!data[i].indent){ 
+				html += 
+				`<li>
+					<a 
+						title="${data[i].title}" 
+						class="${data[i].content_details.locked_for_user?'uos-locked':''}" 
+						href="${data[i].url.replace(/\/api\/v1/,"")}" 
+						data-api-endpoint="${data[i].type}" 
+						data-api-returntype="${data[i].url}">
+							${data[i].title}
+							${data[i].content_details.lock_explanation?`<span class="uos-lock-explanation">${data[i].content_details.lock_explanation}</span>`:''}
+							${(data[i].published === undefined || data[i].published === true)?'':'<span class="uos-published">unpublished</span>'}
+					</a>
+				</li>`;
+			}
+		}
+		html += `</ul>`;
+		//add the html to the page
+		el.parentNode.innerHTML = html;
+	}catch(err){
+		console.error(err);
+		//default will leave a link to the units page
+	}
+}
+
+
+
+// H5P iframe Resizer script
+//last updated 19/07/21 MT
+(function () {
+	if (!window.postMessage || !window.addEventListener || window.h5pResizerInitialized) {
+	  return; // Not supported
+	}
+	window.h5pResizerInitialized = true;
+  
+	// Map actions to handlers
+	var actionHandlers = {};
+  
+	/**
+	 * Prepare iframe resize.
+	 *
+	 * @private
+	 * @param {Object} iframe Element
+	 * @param {Object} data Payload
+	 * @param {Function} respond Send a response to the iframe
+	 */
+	actionHandlers.hello = function (iframe, data, respond) {
+	  // Make iframe responsive
+	  iframe.style.width = '100%';
+  
+	  // Bugfix for Chrome: Force update of iframe width. If this is not done the
+	  // document size may not be updated before the content resizes.
+	  iframe.getBoundingClientRect();
+  
+	  // Tell iframe that it needs to resize when our window resizes
+	  var resize = function () {
+		if (iframe.contentWindow) {
+		  // Limit resize calls to avoid flickering
+		  respond('resize');
+		}
+		else {
+		  // Frame is gone, unregister.
+		  window.removeEventListener('resize', resize);
+		}
+	  };
+	  window.addEventListener('resize', resize, false);
+  
+	  // Respond to let the iframe know we can resize it
+	  respond('hello');
+	};
+  
+	/**
+	 * Prepare iframe resize.
+	 *
+	 * @private
+	 * @param {Object} iframe Element
+	 * @param {Object} data Payload
+	 * @param {Function} respond Send a response to the iframe
+	 */
+	actionHandlers.prepareResize = function (iframe, data, respond) {
+	  // Do not resize unless page and scrolling differs
+	  if (iframe.clientHeight !== data.scrollHeight ||
+		  data.scrollHeight !== data.clientHeight) {
+  
+		// Reset iframe height, in case content has shrinked.
+		iframe.style.height = data.clientHeight + 'px';
+		respond('resizePrepared');
+	  }
+	};
+  
+	/**
+	 * Resize parent and iframe to desired height.
+	 *
+	 * @private
+	 * @param {Object} iframe Element
+	 * @param {Object} data Payload
+	 * @param {Function} respond Send a response to the iframe
+	 */
+	actionHandlers.resize = function (iframe, data) {
+	  // Resize iframe so all content is visible. Use scrollHeight to make sure we get everything
+	  iframe.style.height = data.scrollHeight + 'px';
+	};
+  
+	/**
+	 * Keyup event handler. Exits full screen on escape.
+	 *
+	 * @param {Event} event
+	 */
+	var escape = function (event) {
+	  if (event.keyCode === 27) {
+		exitFullScreen();
+	  }
+	};
+  
+	// Listen for messages from iframes
+	window.addEventListener('message', function receiveMessage(event) {
+	  if (event.data.context !== 'h5p') {
+		return; // Only handle h5p requests.
+	  }
+  
+	  // Find out who sent the message
+	  var iframe, iframes = document.getElementsByTagName('iframe');
+	  for (var i = 0; i < iframes.length; i++) {
+		if (iframes[i].contentWindow === event.source) {
+		  iframe = iframes[i];
+		  break;
+		}
+	  }
+  
+	  if (!iframe) {
+		return; // Cannot find sender
+	  }
+  
+	  // Find action handler handler
+	  if (actionHandlers[event.data.action]) {
+		actionHandlers[event.data.action](iframe, event.data, function respond(action, data) {
+		  if (data === undefined) {
+			data = {};
+		  }
+		  data.action = action;
+		  data.context = 'h5p';
+		  event.source.postMessage(data, event.origin);
+		});
+	  }
+	}, false);
+  
+	// Let h5p iframes know we're ready!
+	var iframes = document.getElementsByTagName('iframe');
+	var ready = {
+	  context: 'h5p',
+	  action: 'ready'
+	};
+	for (var i = 0; i < iframes.length; i++) {
+	  if (iframes[i].src.indexOf('h5p') !== -1) {
+		iframes[i].contentWindow.postMessage(ready, '*');
+	  }
+	}
+  
+  })();
